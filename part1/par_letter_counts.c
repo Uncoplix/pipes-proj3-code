@@ -52,6 +52,20 @@ int count_letters(const char *file_name, int *counts) {
  * Returns 0 on success or -1 on error
  */
 int process_file(const char *file_name, int out_fd) {
+    // Array of known size -> using static allocation
+    int counts[26] = {0};
+
+    if (count_letters(file_name, *counts) == -1) {
+        fprintf(stderr, "count_letters()\n");
+        return -1;
+    }
+
+    // Write to file descriptor atomically
+    if (write(out_fd, counts, sizeof(int) * 26) == -1) {
+        fprintf(stderr, "write()\n");
+        return -1;
+    }
+
     return 0;
 }
 
