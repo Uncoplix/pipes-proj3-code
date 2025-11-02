@@ -1,0 +1,7 @@
+.vscode/
+part1/par_letter_counts
+part1/test_results/
+part2/string_vector.o
+part2/swish
+part2/swish.o
+part2/swish_funcs.o

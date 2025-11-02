@@ -18,6 +18,28 @@
  * Returns 0 on success or -1 on error.
  */
 int count_letters(const char *file_name, int *counts) {
+    // Counts has length 26
+    // Use case insensitive logic
+    FILE *fh = fopen(file_name, "r");
+    if (fh == NULL) {
+        perror("fopen");
+        return -1;
+    }
+
+    char letter;
+    while (fread(&letter, 1, sizeof(char), fh) > 0) {
+        if (!isalpha(letter)) {
+            continue;
+        }
+        char lower = tolower(letter);    // Letter is in alphabet, make it lowercase.
+        counts[lower % 'a'] += 1;
+    }
+
+    if (ferror(fh)) {
+        perror("fread");
+        return -1;
+    }
+
     return 0;
 }
 
