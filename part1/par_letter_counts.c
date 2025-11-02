@@ -69,7 +69,7 @@ int process_file(const char *file_name, int out_fd) {
     }
 
     // Write to file descriptor atomically
-    if (write(out_fd, counts, sizeof(int) * ALPHABET_LEN)) {
+    if (write(out_fd, counts, sizeof(int) * ALPHABET_LEN) == -1) {
         perror("write");
         return -1;
     }
