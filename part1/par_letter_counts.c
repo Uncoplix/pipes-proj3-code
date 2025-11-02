@@ -68,28 +68,11 @@ int process_file(const char *file_name, int out_fd) {
         return -1;
     }
 
-    // Open output file
-    FILE *fh = fopen(file_name, "w");
-    if (fh == NULL) {
-        perror("fopen");
-        return -1;
-    }
-
     // Write to file descriptor atomically
-    fwrite(counts, 1, sizeof(int) * 26, fh);
-
-    // Error check write
-    if (ferror(fh)) {
-        perror("fwrite");
-        fclose(fh);
+    if (write(out_fd, counts, sizeof(int) * ALPHABET_LEN)) {
+        perror("write");
         return -1;
     }
-
-    // Safely close file
-    if (fclose(fh) == EOF) {
-        perror("fclose");
-        return -1;
-    };
 
     return 0;
 }
