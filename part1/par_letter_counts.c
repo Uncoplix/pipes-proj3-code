@@ -35,12 +35,14 @@ int count_letters(const char *file_name, int *counts) {
         counts[lower % 'a'] += 1;
     }
 
+    // Error check read
     if (ferror(fh)) {
         perror("fread");
         fclose(fh);
         return -1;
     }
 
+    // Safely close file
     if (fclose(fh) == EOF) {
         perror("fclose");
         return -1;
@@ -62,15 +64,32 @@ int process_file(const char *file_name, int out_fd) {
     int counts[26] = {0};
 
     if (count_letters(file_name, counts) == -1) {
-        fprintf(stderr, "count_letters()\n");
+        fprintf(stderr, "count_letters\n");
+        return -1;
+    }
+
+    // Open output file
+    FILE *fh = fopen(file_name, "w");
+    if (fh == NULL) {
+        perror("fopen");
         return -1;
     }
 
     // Write to file descriptor atomically
-    if (write(out_fd, counts, sizeof(int) * 26) == -1) {
-        fprintf(stderr, "write()\n");
+    fwrite(counts, 1, sizeof(int) * 26, fh);
+
+    // Error check write
+    if (ferror(fh)) {
+        perror("fwrite");
+        fclose(fh);
         return -1;
     }
+
+    // Safely close file
+    if (fclose(fh) == EOF) {
+        perror("fclose");
+        return -1;
+    };
 
     return 0;
 }
