@@ -55,7 +55,7 @@ int process_file(const char *file_name, int out_fd) {
     // Array of known size -> using static allocation
     int counts[26] = {0};
 
-    if (count_letters(file_name, *counts) == -1) {
+    if (count_letters(file_name, counts) == -1) {
         fprintf(stderr, "count_letters()\n");
         return -1;
     }
