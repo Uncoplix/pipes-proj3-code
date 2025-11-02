@@ -83,13 +83,66 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    // TODO Create a pipe for child processes to write their results
-    // TODO Fork a child to analyze each specified file (names are argv[1], argv[2], ...)
-    // TODO Aggregate all the results together by reading from the pipe in the parent
+    // Create a pipe for child processes to write their results
+    int fds[2];
+    if (pipe(fds) == -1) {
+        perror("pipe");
+        return -1;
+    }
+
+    // Fork a child to analyze each specified file (names are argv[1], argv[2], ...)
+    // there are argc-1 children in total
+    for (int i = 1; i <= argc; i++) {
+        pid_t child_pid = fork();
+
+        if (child_pid < 0) {
+            perror("fork");
+            close(fds[0]);
+            close(fds[1]);
+            return -1;
+        } else if (child_pid == 0) {
+            // child process
+            close(fds[0]);
+
+            // TODO error handle
+            process_file(argv[i], fds[1]);
+
+            close(fds[1]);
+
+            return 1;
+        } else {
+            // parent process
+        }
+    }
+
+    // variable to keep track of failed children
+    int error_code = 0;
+    // wait for all the children
+    for (int i = 1; i <= argc; i++) {
+        if (wait(NULL) == -1) {
+            perror("wait()");
+            error_code = -1;
+        }
+    }
+    if (error_code == -1) {
+        close(fds[0]);
+        close(fds[1]);
+    }
+
+    // Aggregate all the results together by reading from the pipe in the parent
+    int total[ALPHABET_LEN] = {0};
+    int letters[ALPHABET_LEN] = {0};
+
+    close(fds[1]);
+    while (read(fds[0], letters, sizeof(int) * ALPHABET_LEN) > 0) {
+        for (int i = 0; i < ALPHABET_LEN; i++) {
+            total[i] += letters[i];
+        }
+    }
 
     // TODO Change this code to print out the total count of each letter (case insensitive)
     for (int i = 0; i < ALPHABET_LEN; i++) {
-        printf("%c Count: %d\n", 'a' + i, -1);
+        printf("%c Count: %d\n", 'a' + i, total[i]);
     }
     return 0;
 }
