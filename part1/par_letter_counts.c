@@ -37,8 +37,14 @@ int count_letters(const char *file_name, int *counts) {
 
     if (ferror(fh)) {
         perror("fread");
+        fclose(fh);
         return -1;
     }
+
+    if (fclose(fh) == EOF) {
+        perror("fclose");
+        return -1;
+    };
 
     return 0;
 }
