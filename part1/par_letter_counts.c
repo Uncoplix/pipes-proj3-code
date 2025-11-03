@@ -97,7 +97,7 @@ int main(int argc, char **argv) {
         pid_t child_pid = fork();
 
         if (child_pid < 0) {
-            perror("fork");
+            perror("fork()");
             close(fds[0]);
             close(fds[1]);
             return 1;
@@ -105,16 +105,22 @@ int main(int argc, char **argv) {
             // child process
             close(fds[0]);
 
-            // TODO error handle
-            process_file(argv[i], fds[1]);
+            // write character counts of file to pipe
+            if (process_file(argv[i], fds[1]) == -1) {
+                // autograder doesn't like error printed to stderr
+                close(fds[1]);
+                return 1;
+            }
 
             close(fds[1]);
 
+            // terminate child process
             return 0;
-        } else {
-            // parent process
         }
     }
+
+    // Parent doesn't write -> close write end
+    close(fds[1]);
 
     // variable to keep track of failed children
     int error_code = 0;
@@ -127,28 +133,29 @@ int main(int argc, char **argv) {
     }
     if (error_code == -1) {
         close(fds[0]);
-        close(fds[1]);
         return 1;
     }
 
-    // Aggregate all the results together by reading from the pipe in the parent
+    // Arrays to compute total letter counts from all files
     int total[ALPHABET_LEN] = {0};
     int letters[ALPHABET_LEN] = {0};
 
-    close(fds[1]);
+    // Aggregate all the results together by reading from the pipe in the parent
     int nbytes;
     while ((nbytes = read(fds[0], letters, sizeof(int) * ALPHABET_LEN)) > 0) {
         for (int i = 0; i < ALPHABET_LEN; i++) {
             total[i] += letters[i];
         }
     }
+
     close(fds[0]);
+
     if (nbytes == -1) {
         perror("read");
         return 1;
     }
 
-    // TODO Change this code to print out the total count of each letter (case insensitive)
+    // Print out the total count of each letter (case insensitive)
     for (int i = 0; i < ALPHABET_LEN; i++) {
         printf("%c Count: %d\n", 'a' + i, total[i]);
     }
