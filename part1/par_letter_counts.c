@@ -20,6 +20,7 @@
 int count_letters(const char *file_name, int *counts) {
     // Counts has length 26
     // Use case insensitive logic
+    // printf("%s\n", file_name);
     FILE *fh = fopen(file_name, "r");
     if (fh == NULL) {
         perror("fopen");
@@ -27,12 +28,12 @@ int count_letters(const char *file_name, int *counts) {
     }
 
     char letter;
-    while (fread(&letter, 1, sizeof(char), fh) > 0) {
+    while (fread(&letter, sizeof(char), 1, fh) > 0) {
         if (!isalpha(letter)) {
             continue;
         }
         char lower = tolower(letter);    // Letter is in alphabet, make it lowercase.
-        counts[lower % 'a'] += 1;
+        counts[lower - 'a'] += 1;
     }
 
     // Error check read
@@ -64,7 +65,7 @@ int process_file(const char *file_name, int out_fd) {
     int counts[26] = {0};
 
     if (count_letters(file_name, counts) == -1) {
-        fprintf(stderr, "count_letters\n");
+        // Error printing handled by count_letters
         return -1;
     }
 
@@ -87,19 +88,19 @@ int main(int argc, char **argv) {
     int fds[2];
     if (pipe(fds) == -1) {
         perror("pipe");
-        return -1;
+        return 1;
     }
 
     // Fork a child to analyze each specified file (names are argv[1], argv[2], ...)
     // there are argc-1 children in total
-    for (int i = 1; i <= argc; i++) {
+    for (int i = 1; i < argc; i++) {
         pid_t child_pid = fork();
 
         if (child_pid < 0) {
             perror("fork");
             close(fds[0]);
             close(fds[1]);
-            return -1;
+            return 1;
         } else if (child_pid == 0) {
             // child process
             close(fds[0]);
@@ -109,7 +110,7 @@ int main(int argc, char **argv) {
 
             close(fds[1]);
 
-            return 1;
+            return 0;
         } else {
             // parent process
         }
@@ -118,15 +119,16 @@ int main(int argc, char **argv) {
     // variable to keep track of failed children
     int error_code = 0;
     // wait for all the children
-    for (int i = 1; i <= argc; i++) {
+    for (int i = 1; i < argc; i++) {
         if (wait(NULL) == -1) {
-            perror("wait()");
+            perror("wait");
             error_code = -1;
         }
     }
     if (error_code == -1) {
         close(fds[0]);
         close(fds[1]);
+        return 1;
     }
 
     // Aggregate all the results together by reading from the pipe in the parent
@@ -134,10 +136,16 @@ int main(int argc, char **argv) {
     int letters[ALPHABET_LEN] = {0};
 
     close(fds[1]);
-    while (read(fds[0], letters, sizeof(int) * ALPHABET_LEN) > 0) {
+    int nbytes;
+    while ((nbytes = read(fds[0], letters, sizeof(int) * ALPHABET_LEN)) > 0) {
         for (int i = 0; i < ALPHABET_LEN; i++) {
             total[i] += letters[i];
         }
+    }
+    close(fds[0]);
+    if (nbytes == -1) {
+        perror("read");
+        return 1;
     }
 
     // TODO Change this code to print out the total count of each letter (case insensitive)
