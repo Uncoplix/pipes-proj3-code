@@ -23,7 +23,7 @@ int count_letters(const char *file_name, int *counts) {
     // printf("%s\n", file_name);
     FILE *fh = fopen(file_name, "r");
     if (fh == NULL) {
-        perror("fopen");
+        perror("fopen");    // errno set
         return -1;
     }
 
@@ -38,14 +38,14 @@ int count_letters(const char *file_name, int *counts) {
 
     // Error check read
     if (ferror(fh)) {
-        perror("fread");
+        perror("fread");    // errno set
         fclose(fh);
         return -1;
     }
 
     // Safely close file
     if (fclose(fh) == EOF) {
-        perror("fclose");
+        perror("fclose");    // errno set
         return -1;
     };
 
@@ -64,9 +64,12 @@ int process_file(const char *file_name, int out_fd) {
     // Array of known size -> using static allocation
     int counts[26] = {0};
 
+    // TODO
     if (count_letters(file_name, counts) == -1) {
-        // Error printing handled by count_letters
-        return -1;
+        /* Error printing handled by count_letters */
+        /* Child should not fail from this, instead the parent will "see" all counts equal to 0 */
+        // Early return and write nothing to the pipe because count_letters failed (some file error)
+        return 0;
     }
 
     // Write to file descriptor atomically
@@ -87,7 +90,7 @@ int main(int argc, char **argv) {
     // Create a pipe for child processes to write their results
     int fds[2];
     if (pipe(fds) == -1) {
-        perror("pipe");
+        perror("pipe");    // errno set
         return 1;
     }
 
@@ -96,43 +99,51 @@ int main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         pid_t child_pid = fork();
 
-        if (child_pid < 0) {
-            perror("fork()");
+        if (child_pid == -1) {
+            perror("fork");    // errno set
+            // Stop reading and writing to pipe
             close(fds[0]);
             close(fds[1]);
+
+            // Wait until all already existing children die
+            for (int j = 1; j < i; j++) {
+                wait(NULL);
+            }
             return 1;
         } else if (child_pid == 0) {
-            // child process
-            close(fds[0]);
+            /* Child process */
+            close(fds[0]);    // Stop reading from child
 
-            // write character counts of file to pipe
+            // Write character counts of file to pipe
             if (process_file(argv[i], fds[1]) == -1) {
-                // autograder doesn't like error printed to stderr
-                close(fds[1]);
+                /* Error printing handled by process_file */
+                close(fds[1]);    // Stop writing from child
                 return 1;
             }
 
-            close(fds[1]);
+            close(fds[1]);    // Stop writing from child
 
-            // terminate child process
+            // Terminate child process with success code
             return 0;
         }
     }
 
-    // Parent doesn't write -> close write end
-    close(fds[1]);
+    close(fds[1]);    // Stop writing from parent
 
-    // variable to keep track of failed children
+    // Make a variable to keep track of failed children
     int error_code = 0;
-    // wait for all the children
+    int status;
+    // Wait for all the children to finish
     for (int i = 1; i < argc; i++) {
-        if (wait(NULL) == -1) {
+        if (wait(&status) == -1) {
             perror("wait");
+            error_code = -1;
+        } else if (WIFEXITED(status) && WEXITSTATUS(status) == 1) {
             error_code = -1;
         }
     }
     if (error_code == -1) {
-        close(fds[0]);
+        close(fds[0]);    // Stop reading from parent
         return 1;
     }
 
