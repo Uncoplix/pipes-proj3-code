@@ -69,7 +69,7 @@ int process_file(const char *file_name, int out_fd) {
         /* Error printing handled by count_letters */
         /* Child should not fail from this, instead the parent will "see" all counts equal to 0 */
         // Early return and write nothing to the pipe because count_letters failed (some file error)
-        return 0;
+        return -1;
     }
 
     // Write to file descriptor atomically
@@ -130,21 +130,13 @@ int main(int argc, char **argv) {
 
     close(fds[1]);    // Stop writing from parent
 
-    // Make a variable to keep track of failed children
-    int error_code = 0;
-    int status;
     // Wait for all the children to finish
     for (int i = 1; i < argc; i++) {
-        if (wait(&status) == -1) {
+        if (wait(NULL) == -1) {
             perror("wait");
-            error_code = -1;
-        } else if (WIFEXITED(status) && WEXITSTATUS(status) == 1) {
-            error_code = -1;
+            close(fds[0]);    // Stop reading from parent
+            return 1;
         }
-    }
-    if (error_code == -1) {
-        close(fds[0]);    // Stop reading from parent
-        return 1;
     }
 
     // Arrays to compute total letter counts from all files
