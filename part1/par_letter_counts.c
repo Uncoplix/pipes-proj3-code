@@ -67,8 +67,6 @@ int process_file(const char *file_name, int out_fd) {
     // TODO
     if (count_letters(file_name, counts) == -1) {
         /* Error printing handled by count_letters */
-        /* Child should not fail from this, instead the parent will "see" all counts equal to 0 */
-        // Early return and write nothing to the pipe because count_letters failed (some file error)
         return -1;
     }
 
