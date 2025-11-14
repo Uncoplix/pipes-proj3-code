@@ -26,13 +26,29 @@
  * Returns 0 on success or -1 on error.
  */
 int run_piped_command(strvec_t *tokens, int *pipes, int n_pipes, int in_idx, int out_idx) {
+    // Safely close unused pipe file descriptors in child process
+    for (int j = 0; j < n_pipes; j++) {
+        if (in_idx != 2 * j) {
+            if (close(pipes[2 * j]) == -1) {
+                perror("close");
+                return -1;
+            };
+        }
+        if (out_idx != 2 * j + 1) {
+            if (close(pipes[2 * j + 1]) == -1) {
+                perror("close");
+                return -1;
+            };
+        }
+    }
+
     // Check index bounds
     if ((in_idx < -1 || in_idx >= 2 * n_pipes) || (out_idx < -1 || out_idx >= 2 * n_pipes)) {
         fprintf(stderr, "Index out of bounds\n");
         return -1;
     }
 
-    // Set up stdin redirection if applicable
+    // Redirect standard input from a pipe when needed
     if (in_idx != -1) {
         // Safely redirect stdin to read end of specified pipe
         if (dup2(pipes[in_idx], STDIN_FILENO) == -1) {
@@ -41,7 +57,7 @@ int run_piped_command(strvec_t *tokens, int *pipes, int n_pipes, int in_idx, int
         }
     }
 
-    // Set up stdout redirection if applicable
+    // Redirect standard output to a pipe when needed
     if (out_idx != -1) {
         // Safely redirect stdout to write end of specified pipe
         if (dup2(pipes[out_idx], STDOUT_FILENO) == -1) {
@@ -56,7 +72,6 @@ int run_piped_command(strvec_t *tokens, int *pipes, int n_pipes, int in_idx, int
         return -1;
     }
 
-    /* Caller is responsible for closing any ends of any pipes */
     /* The function has made it to the end successfully */
     /* Should not reach this point if run_command succeeds */
     return 0;
@@ -64,7 +79,7 @@ int run_piped_command(strvec_t *tokens, int *pipes, int n_pipes, int in_idx, int
 
 int run_pipelined_commands(strvec_t *tokens) {
     /* START PIPE SETUP BLOCK */
-    // Safely allocate and create an array of pipes
+    // Safely allocate and initialize an array of pipes
     int num_pipes = strvec_num_occurrences(tokens, "|");
     if (num_pipes == 0) {
         /* There are no pipes so save time and execute like normal */
@@ -131,47 +146,22 @@ int run_pipelined_commands(strvec_t *tokens) {
                 /* Last command takes input from read end of last pipe */
                 in_idx = 2 * (num_pipes - 1) + 0;
             } else {
-                /* All commands between first and last pipe */
+                /* Interior commands between first and last pipe */
                 in_idx = 2 * (i - 1);    // Read to pipe connecting to last command
                 out_idx = 2 * i + 1;     // Write to pipe connecting to next command
             }
-            // Close all pipes that the child isn't using
-            int close_error = 0;
-            for (int j = 0; j < num_pipes; j++) {
-                if (in_idx != 2 * j) {
-                    if (close(pipes_fds[2 * j]) == -1) {
-                        close_error = -1;
-                    };
-                }
-                if (out_idx != 2 * j + 1) {
-                    if (close(pipes_fds[2 * j + 1]) == -1) {
-                        close_error = -1;
-                    };
-                }
-            }
-            if (close_error == -1) {
-                perror("close");
-                if (in_idx != -1) {
-                    close(pipes_fds[in_idx]);
-                }
-                if (out_idx != -1) {
-                    close(pipes_fds[out_idx]);
-                }
-                exit(1);
-            }
-            // Free the non needed strvec
+            // Parse tokens for command and call run_piped_command() to perform correct redirection.
+            // Slice the right tokens into a new strvec
             strvec_t cmd_tokens;
             if (strvec_slice(tokens, &cmd_tokens, pipe_idx + 1, tokens->length) == -1) {
                 fprintf(stderr, "strvec_slice\n");
-                if (in_idx != -1) {
-                    close(pipes_fds[in_idx]);
-                }
-                if (out_idx != -1) {
-                    close(pipes_fds[out_idx]);
+                // Close all pipes
+                for (int i = 0; i < num_pipes; i++) {
+                    close(pipes_fds[2 * i]);
+                    close(pipes_fds[2 * i + 1]);
                 }
                 exit(1);
             }
-
             // Safely execute piped command
             if (run_piped_command(&cmd_tokens, pipes_fds, num_pipes, in_idx, out_idx) == -1) {
                 fprintf(stderr, "run_piped_commands\n");
