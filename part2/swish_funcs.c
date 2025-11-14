@@ -90,7 +90,7 @@ int run_pipelined_commands(strvec_t *tokens) {
             }
             free(pipes_fds);    // Free up that malloc :p
             return -1;
-        };
+        }
     }
     /* END PIPE SETUP BLOCK */
 
